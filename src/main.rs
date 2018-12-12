@@ -1,18 +1,24 @@
+#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 #[macro_use] extern crate serde_json;
-#[macro_use] extern crate serenity;
 
 extern crate env_logger;
 extern crate eventstore;
 extern crate futures;
 extern crate kankyo;
+extern crate regex;
+extern crate serenity;
 
 use eventstore::{Connection, EventData};
 use futures::Future;
+use regex::Regex;
 
 use serenity::{
     framework::StandardFramework,
-    model::channel::Message,
+    model::{
+        channel::{Embed, Message},
+        id::UserId,
+    },
     prelude::*,
 };
 
@@ -20,9 +26,41 @@ use std::env;
 
 struct Handler;
 
+struct Income {
+    user_id: UserId,
+    amount: u64,
+}
+
+impl Income {
+    fn from_msg(msg: &Message) -> Option<Income> {
+        lazy_static! {
+            static ref re: Regex = Regex::new(r"^<@(\d+)> kinkis kasutajale <@(\d+)> (\d+) :potato:\.$").unwrap();
+            static ref self_user_id: u64 = env::var("SELF_USER_ID").unwrap().parse::<u64>().unwrap();
+        }
+        if let [Embed { description: Some(ref d), .. }] = msg.embeds[..] {
+            if let Some(cap) = re.captures(d.as_str()) {
+                let source = (&cap[1]).parse::<u64>().unwrap();
+                let target = (&cap[2]).parse::<u64>().unwrap();
+                let amount = (&cap[3]).parse::<u64>().unwrap();
+                if target == *self_user_id {
+                    return Some(Income { user_id: UserId(source), amount });
+                }
+            }
+        }
+        None
+    }
+}
+
 impl EventHandler for Handler {
     fn message(&self, _ctx: Context, msg: Message) {
-        info!("{:?}", msg);
+        lazy_static! {
+            static ref et_bot_user_id: u64 = env::var("BOT_USER_ID").unwrap().parse::<u64>().unwrap();
+        }
+        if msg.author.id.0 == *et_bot_user_id {
+            if let Some(income) = Income::from_msg(&msg) {
+                info!("Laekumine: {:?} ({:?})", income.user_id, income.amount);
+            }
+        }
     }
 }
 
