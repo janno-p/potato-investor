@@ -7,6 +7,7 @@ use serenity::{
 };
 
 use super::event_consumer::EventConsumer;
+use super::events::IncomeReceived;
 use super::models::Income;
 
 pub struct DiscordHandler {
@@ -35,14 +36,12 @@ impl EventHandler for DiscordHandler {
     fn message(&self, _ctx: Context, msg: Message) {
         if msg.author.id.0 == self.et_bot_id {
             if let Some(income) = Income::parse(&msg, self.self_id) {
-                let payload = json!({
-                    "message_id": msg.id.0,
-                    "channel_id": msg.channel_id.0,
-                    "user_id": income.user_id.0,
-                    "amount": income.amount
+                let event = EventData::json("income-received", IncomeReceived {
+                    message_id: msg.id.0,
+                    channel_id: msg.channel_id.0,
+                    user_id: income.user_id.0,
+                    amount: income.amount
                 });
-
-                let event = EventData::json("income-received", payload);
 
                 let _ = self.eventstore
                     .write_events("bank-stream")

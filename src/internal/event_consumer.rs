@@ -1,6 +1,10 @@
+use bytes::buf::IntoBuf;
 use eventstore::{Connection, OnEventAppeared, ResolvedEvent, SubscriptionConsumer, SubscriptionEnv};
+use serde_json::Result;
 use std::thread::{JoinHandle, spawn};
 use uuid::Uuid;
+
+use super::events::IncomeReceived;
 
 pub struct EventConsumer;
 
@@ -27,7 +31,11 @@ impl SubscriptionConsumer for EventConsumer {
             Some(ref e) => {
                 match e.event_type.to_string().as_str() {
                     "income-received" => {
-
+                        let result: Result<IncomeReceived> = serde_json::from_reader(e.data.clone().into_buf());
+                        match result {
+                            Ok(data) => info!("INCOME RECEIVED: {:?}", data),
+                            Err(why) => error!("Invalid event: {:?}", why)
+                        }
                     },
                     name => warn!("Unknown event type: {:?}", name)
                 }
