@@ -13,10 +13,12 @@ extern crate serenity;
 
 mod internal;
 
-use serenity::{framework::StandardFramework, prelude::* };
+use serenity::{framework::StandardFramework, prelude::*, http};
 use std::env;
+use std::sync::mpsc;
 
 use self::internal::discord_handler::DiscordHandler;
+use self::internal::event_queue::start_event_queue;
 
 fn main() {
     kankyo::load()
@@ -26,6 +28,8 @@ fn main() {
 
     let discord_token = env::var("DISCORD_TOKEN")
         .expect("Expected a token in environment");
+
+    http::set_token(&discord_token);
 
     let eventstore_address = env::var("EVENTSTORE_ADDRESS")
         .expect("Expected an eventstore address in environment");
@@ -40,13 +44,17 @@ fn main() {
         .parse::<u64>()
         .unwrap();
 
-    let mut client = Client::new(&discord_token, DiscordHandler::new(eventstore_address, self_user_id, et_bot_user_id))
+    let (sender, receiver) = mpsc::sync_channel(1024);
+
+    let mut client = Client::new(&discord_token, DiscordHandler::new(eventstore_address, self_user_id, et_bot_user_id, sender.clone()))
         .expect("Error creating client");
 
     client.with_framework(StandardFramework::new()
         .configure(|c| c
             .prefix("!"))
     );
+
+    start_event_queue(receiver);
 
     if let Err(why) = client.start() {
         error!("Client error: {:?}", why);

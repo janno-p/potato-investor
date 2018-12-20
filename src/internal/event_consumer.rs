@@ -1,20 +1,23 @@
-use bytes::buf::IntoBuf;
 use eventstore::{Connection, OnEventAppeared, ResolvedEvent, SubscriptionConsumer, SubscriptionEnv};
-use serde_json::Result;
 use std::thread::{JoinHandle, spawn};
+use std::sync::mpsc::SyncSender;
 use uuid::Uuid;
 
-use super::events::IncomeReceived;
+use super::event_queue::Event;
 
-pub struct EventConsumer;
+pub struct EventConsumer {
+    sender: SyncSender<Event>,
+}
 
 impl EventConsumer {
-    pub fn new(eventstore: &Connection) -> JoinHandle<EventConsumer> {
+    pub fn new(eventstore: &Connection, sender: SyncSender<Event>) -> JoinHandle<EventConsumer> {
         let subscription = eventstore.subscribe_to_stream_from("bank-stream")
             .execute();
 
         spawn(move || {
-            subscription.consume(EventConsumer)
+            subscription.consume(EventConsumer {
+                sender
+            })
         })
     }
 }
@@ -29,16 +32,8 @@ impl SubscriptionConsumer for EventConsumer {
     {
         match e.event {
             Some(ref e) => {
-                match e.event_type.to_string().as_str() {
-                    "income-received" => {
-                        let result: Result<IncomeReceived> = serde_json::from_reader(e.data.clone().into_buf());
-                        match result {
-                            Ok(data) => info!("INCOME RECEIVED: {:?}", data),
-                            Err(why) => error!("Invalid event: {:?}", why)
-                        }
-                    },
-                    name => warn!("Unknown event type: {:?}", name)
-                }
+                let ev = Event::new(e.event_type.to_string(), String::from_utf8(e.data.to_vec()).unwrap());
+                let _ = self.sender.send(ev).unwrap();
             },
             _ => warn!("No recorded event.")
         }

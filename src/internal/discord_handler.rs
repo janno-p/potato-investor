@@ -1,13 +1,11 @@
 use eventstore::{Connection, EventData};
 use futures::Future;
-
-use serenity::{
-    model::channel::Message,
-    prelude::*
-};
+use serenity::{model::channel::Message, prelude::*};
+use std::sync::mpsc::SyncSender;
 
 use super::event_consumer::EventConsumer;
 use super::events::IncomeReceived;
+use super::event_queue::Event;
 use super::models::Income;
 
 pub struct DiscordHandler {
@@ -17,12 +15,12 @@ pub struct DiscordHandler {
 }
 
 impl DiscordHandler {
-    pub fn new(eventstore_address: String, self_id: u64, et_bot_id: u64) -> DiscordHandler {
+    pub fn new(eventstore_address: String, self_id: u64, et_bot_id: u64, sender: SyncSender<Event>) -> DiscordHandler {
         let eventstore = Connection::builder()
             .start(eventstore_address)
             .unwrap();
 
-        let _handle = EventConsumer::new(&eventstore);
+        let _handle = EventConsumer::new(&eventstore, sender);
 
         DiscordHandler {
             eventstore,
