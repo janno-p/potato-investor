@@ -8,6 +8,7 @@ extern crate log;
 extern crate serde_derive;
 
 mod internal;
+mod settings;
 
 use serenity::{
     framework::{standard::help_commands, StandardFramework},
@@ -15,42 +16,31 @@ use serenity::{
     prelude::*,
 };
 
-use std::env;
+use std::process;
 use std::sync::mpsc;
 
-use self::internal::discord_handler::{withdraw, DiscordHandler, SenderWrapper};
-use self::internal::event_queue::{start_event_queue, Event, ShowBalanceCommand};
+use crate::internal::discord_handler::{withdraw, DiscordHandler, SenderWrapper};
+use crate::internal::event_queue::{start_event_queue, Event, ShowBalanceCommand};
+use crate::settings::Settings;
 
 fn main() {
-    kankyo::load().expect("Failed to load .env file");
+    let settings = Settings::new().unwrap_or_else(|e| {
+        println!("Failed to load configuration file: {}", e);
+        process::exit(1);
+    });
 
     env_logger::init();
 
-    let discord_token = env::var("DISCORD_TOKEN").expect("Expected a token in environment");
-
-    http::set_token(&discord_token);
-
-    let eventstore_address =
-        env::var("EVENTSTORE_ADDRESS").expect("Expected an eventstore address in environment");
-
-    let et_bot_user_id: u64 = env::var("BOT_USER_ID")
-        .expect("Expected an et-bot user id in environment")
-        .parse::<u64>()
-        .unwrap();
-
-    let self_user_id: u64 = env::var("SELF_USER_ID")
-        .expect("Expected a bot user id in environment")
-        .parse::<u64>()
-        .unwrap();
+    http::set_token(&settings.discord_token);
 
     let (sender, receiver) = mpsc::sync_channel(1024);
 
     let mut client = Client::new(
-        &discord_token,
+        &settings.discord_token,
         DiscordHandler::new(
-            eventstore_address,
-            self_user_id,
-            et_bot_user_id,
+            settings.eventstore_address,
+            settings.self_user_id,
+            settings.bot_user_id,
             sender.clone(),
         ),
     )
