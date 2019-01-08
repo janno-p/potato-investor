@@ -53,7 +53,7 @@ pub fn start_event_queue(receiver: Receiver<Event>) {
                     Ok(ev) => {
                         info!("Income received: {:?}", ev);
                         if let Some(x) = state.get_mut(&ev.user_id) {
-                            (*x).balance = (*x).balance + ev.amount;
+                            (*x).balance += ev.amount;
                         } else {
                             state.insert(ev.user_id, Portfolio { balance: ev.amount });
                         }

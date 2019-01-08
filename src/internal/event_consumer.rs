@@ -33,7 +33,7 @@ impl SubscriptionConsumer for EventConsumer {
                     &e.event_type.to_string(),
                     String::from_utf8(e.data.to_vec()).unwrap(),
                 );
-                let _ = self.sender.send(ev).unwrap();
+                self.sender.send(ev).unwrap();
             }
             _ => warn!("No recorded event."),
         }
